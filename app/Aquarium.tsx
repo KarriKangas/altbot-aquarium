@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, FormEvent, MouseEvent } from "react";
+import type { CSSProperties, FormEvent, MouseEvent, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -31,6 +31,8 @@ type RosterBot = {
   level: number;
   classId: number;
   raceId: number;
+  faction?: string;
+  itemLevel?: number;
   online: boolean;
   area: string;
   gold: number;
@@ -100,17 +102,20 @@ type Snapshot = {
 type CompletedQuest = { id: number; title: string };
 type AquariumTab = "brain" | "quests" | "history";
 type ApiMode = "roster" | "inspect" | "history";
+type Faction = "alliance" | "horde";
+type RosterSort = "level" | "name" | "itemLevel";
+type ClassIcon = "swords" | "shield" | "bow" | "dagger" | "star" | "lightning" | "spark" | "flame" | "leaf" | "question";
 
-const CLASSES: Record<number, { name: string; color: string; sigil: string }> = {
-  1: { name: "Warrior", color: "#c79c6e", sigil: "W" },
-  2: { name: "Paladin", color: "#f58cba", sigil: "P" },
-  3: { name: "Hunter", color: "#abd473", sigil: "H" },
-  4: { name: "Rogue", color: "#fff569", sigil: "R" },
-  5: { name: "Priest", color: "#f5f5f5", sigil: "Pr" },
-  7: { name: "Shaman", color: "#277eea", sigil: "S" },
-  8: { name: "Mage", color: "#69ccf0", sigil: "M" },
-  9: { name: "Warlock", color: "#9482c9", sigil: "Wl" },
-  11: { name: "Druid", color: "#ff7d0a", sigil: "D" },
+const CLASSES: Record<number, { name: string; color: string; sigil: string; icon: ClassIcon }> = {
+  1: { name: "Warrior", color: "#c79c6e", sigil: "W", icon: "swords" },
+  2: { name: "Paladin", color: "#f58cba", sigil: "P", icon: "shield" },
+  3: { name: "Hunter", color: "#abd473", sigil: "H", icon: "bow" },
+  4: { name: "Rogue", color: "#fff569", sigil: "R", icon: "dagger" },
+  5: { name: "Priest", color: "#f5f5f5", sigil: "Pr", icon: "star" },
+  7: { name: "Shaman", color: "#277eea", sigil: "S", icon: "lightning" },
+  8: { name: "Mage", color: "#69ccf0", sigil: "M", icon: "spark" },
+  9: { name: "Warlock", color: "#9482c9", sigil: "Wl", icon: "flame" },
+  11: { name: "Druid", color: "#ff7d0a", sigil: "D", icon: "leaf" },
 };
 const RACES: Record<number, string> = {
   1: "Human",
@@ -124,6 +129,26 @@ const RACES: Record<number, string> = {
   10: "Blood Elf",
   11: "Draenei",
 };
+const ALLIANCE_RACES = new Set([1, 3, 4, 7, 11]);
+const HORDE_RACES = new Set([2, 5, 6, 8, 10]);
+const FACTION_LABELS: Record<Faction, string> = { alliance: "Alliance", horde: "Horde" };
+
+function ClassIcon({ icon }: { icon: ClassIcon }) {
+  const commonProps = { fill: "none", stroke: "currentColor", strokeLinecap: "round" as const, strokeLinejoin: "round" as const, strokeWidth: 1.7 };
+  const paths: Record<ClassIcon, ReactNode> = {
+    swords: <><path d="m6 5 13 13M18 5 5 18" {...commonProps} /><path d="m4.5 4.5 2.5.7-.7 2.5M19.5 4.5l-2.5.7.7 2.5M4.5 19.5l2.5-.7-.7-2.5M19.5 19.5l-2.5-.7.7-2.5" {...commonProps} /></>,
+    shield: <><path d="M12 3.5 19 6v5.4c0 4.3-2.8 7.3-7 9.1-4.2-1.8-7-4.8-7-9.1V6l7-2.5Z" {...commonProps} /><path d="M12 7v8M8.5 11h7" {...commonProps} /></>,
+    bow: <><path d="M7 4c8 3 8 9 0 16M7 4c2.4 1.2 2.4 2.3 0 3.5M7 16.5c2.4 1.2 2.4 2.3 0 3.5M5 12h13M15 9l3 3-3 3" {...commonProps} /></>,
+    dagger: <><path d="m5 19 9.5-9.5M14.5 5.5 18.5 9.5M13 7l4 4M5 19l4-1 9.5-9.5-4-4L5 19Z" {...commonProps} /><path d="m4 20 3-3" {...commonProps} /></>,
+    star: <path d="m12 3 2.1 6.2 6.4.1-5.1 3.8 1.9 6.3-5.3-3.6-5.3 3.6 1.9-6.3-5.1-3.8 6.4-.1L12 3Z" {...commonProps} />,
+    lightning: <path d="m13.5 2.8-7 9.2h5.2L10.5 21l7-9.2h-5.2l1.2-9Z" {...commonProps} />,
+    spark: <><path d="M12 3v5M12 16v5M3 12h5M16 12h5M5.6 5.6l3.5 3.5M14.9 14.9l3.5 3.5M18.4 5.6l-3.5 3.5M9.1 14.9l-3.5 3.5" {...commonProps} /><circle cx="12" cy="12" r="2.5" {...commonProps} /></>,
+    flame: <path d="M13.3 2.8c.8 3.6-2.3 4.8-1.2 7.2.5 1.1 1.8 1.7 2.3 0 2.9 2.1 3.9 4.7 3.1 7.2-.8 2.8-3 4.7-6 4.7-3.6 0-6.2-2.4-6.2-5.8 0-2.3 1.4-4.1 3.7-5.9-.1 2.2.8 3.2 1.7 2.8C12.7 11.4 9.6 8 13.3 2.8Z" {...commonProps} />,
+    leaf: <><path d="M19.7 4.3C10 4.3 5 8.1 5 14.1c0 3.2 2.1 5.6 5.2 5.6 5.9 0 9.5-5.8 9.5-15.4Z" {...commonProps} /><path d="M4.5 20.5c3.1-5.1 6.6-8.7 11-11" {...commonProps} /></>,
+    question: <><path d="M9.5 8.5a2.7 2.7 0 1 1 4.8 1.7c-1.2 1.2-2.3 1.6-2.3 3.3M12 17.5h.01" {...commonProps} /><circle cx="12" cy="12" r="8.5" {...commonProps} /></>,
+  };
+  return <svg className="class-icon" viewBox="0 0 24 24" aria-hidden="true">{paths[icon]}</svg>;
+}
 const EQUIPMENT_NAMES = [
   "Head",
   "Neck",
@@ -175,12 +200,12 @@ function mockItem(
 }
 
 const DEMO_ROSTER: RosterBot[] = [
-  { guid: 187, name: "Aeloria", level: 27, classId: 11, raceId: 4, online: true, area: "Ashenvale", gold: 186432, bagUsed: 39, bagTotal: 52, state: "non-combat", action: "choose travel target" },
-  { guid: 203, name: "Brannoc", level: 24, classId: 1, raceId: 3, online: true, area: "Wetlands", gold: 94510, bagUsed: 30, bagTotal: 44, state: "combat", action: "melee" },
-  { guid: 219, name: "Cinderwick", level: 29, classId: 8, raceId: 7, online: true, area: "Duskwood", gold: 240906, bagUsed: 47, bagTotal: 52, state: "non-combat", action: "rpg wander" },
-  { guid: 221, name: "Drekka", level: 23, classId: 3, raceId: 2, online: true, area: "Stonetalon Mountains", gold: 117320, bagUsed: 32, bagTotal: 44, state: "combat", action: "shoot" },
-  { guid: 238, name: "Elyssara", level: 26, classId: 5, raceId: 11, online: true, area: "Redridge Mountains", gold: 151007, bagUsed: 36, bagTotal: 48, state: "non-combat", action: "talk to quest giver" },
-  { guid: 241, name: "Fenbar", level: 21, classId: 4, raceId: 5, online: false, area: "", gold: 0, bagUsed: 0, bagTotal: 0, state: "offline", action: "" },
+  { guid: 187, name: "Aeloria", level: 27, classId: 11, raceId: 4, itemLevel: 32, online: true, area: "Ashenvale", gold: 186432, bagUsed: 39, bagTotal: 52, state: "non-combat", action: "choose travel target" },
+  { guid: 203, name: "Brannoc", level: 24, classId: 1, raceId: 3, itemLevel: 28, online: true, area: "Wetlands", gold: 94510, bagUsed: 30, bagTotal: 44, state: "combat", action: "melee" },
+  { guid: 219, name: "Cinderwick", level: 29, classId: 8, raceId: 7, itemLevel: 35, online: true, area: "Duskwood", gold: 240906, bagUsed: 47, bagTotal: 52, state: "non-combat", action: "rpg wander" },
+  { guid: 221, name: "Drekka", level: 23, classId: 3, raceId: 2, itemLevel: 25, online: true, area: "Stonetalon Mountains", gold: 117320, bagUsed: 32, bagTotal: 44, state: "combat", action: "shoot" },
+  { guid: 238, name: "Elyssara", level: 26, classId: 5, raceId: 11, itemLevel: 30, online: true, area: "Redridge Mountains", gold: 151007, bagUsed: 36, bagTotal: 48, state: "non-combat", action: "talk to quest giver" },
+  { guid: 241, name: "Fenbar", level: 21, classId: 4, raceId: 5, itemLevel: 22, online: false, area: "", gold: 0, bagUsed: 0, bagTotal: 0, state: "offline", action: "" },
 ];
 
 const DEMO_EQUIPMENT: Snapshot["equipment"] = [
@@ -316,6 +341,26 @@ function demoSnapshot(bot: RosterBot): Snapshot {
     bags: DEMO_BAGS,
     quests: DEMO_QUESTS,
   };
+}
+
+function factionForBot(bot: Pick<RosterBot, "raceId" | "faction">): Faction | null {
+  const suppliedFaction = bot.faction?.trim().toLowerCase();
+  if (suppliedFaction === "alliance" || suppliedFaction === "horde") return suppliedFaction;
+  if (ALLIANCE_RACES.has(bot.raceId)) return "alliance";
+  if (HORDE_RACES.has(bot.raceId)) return "horde";
+  return null;
+}
+
+function itemLevelFromSnapshot(snapshot: Snapshot): number {
+  const itemLevels = snapshot.equipment
+    .map((entry) => entry.item?.itemLevel)
+    .filter((level): level is number => typeof level === "number" && level > 0);
+  if (!itemLevels.length) return 0;
+  return Math.round(itemLevels.reduce((total, level) => total + level, 0) / itemLevels.length);
+}
+
+function rosterItemLevel(bot: Pick<RosterBot, "guid" | "itemLevel">, cachedLevels: Record<number, number>): number {
+  return bot.itemLevel && bot.itemLevel > 0 ? bot.itemLevel : cachedLevels[bot.guid] ?? 0;
 }
 
 async function aquariumRequest<T>(connection: Connection, mode: ApiMode, guid?: number): Promise<T> {
@@ -526,6 +571,9 @@ export default function Aquarium() {
   const [completed, setCompleted] = useState<CompletedQuest[]>(DEMO_COMPLETED);
   const [tab, setTab] = useState<AquariumTab>("brain");
   const [search, setSearch] = useState("");
+  const [factionFilters, setFactionFilters] = useState<Record<Faction, boolean>>({ alliance: true, horde: true });
+  const [rosterSort, setRosterSort] = useState<RosterSort>("name");
+  const [itemLevels, setItemLevels] = useState<Record<number, number>>({});
   const [historySearch, setHistorySearch] = useState("");
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
@@ -537,10 +585,21 @@ export default function Aquarium() {
   const coin = money(snapshot.gold);
   const filteredRoster = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return needle
-      ? roster.filter((bot) => `${bot.name} ${bot.area} ${CLASSES[bot.classId]?.name ?? ""}`.toLowerCase().includes(needle))
-      : roster;
-  }, [roster, search]);
+    const visibleFactions = (faction: Faction | null) => faction === null
+      ? factionFilters.alliance && factionFilters.horde
+      : factionFilters[faction];
+    const matches = roster.filter((bot) => {
+      const matchesSearch = !needle || `${bot.name} ${bot.area} ${RACES[bot.raceId] ?? ""} ${CLASSES[bot.classId]?.name ?? ""}`.toLowerCase().includes(needle);
+      return matchesSearch && visibleFactions(factionForBot(bot));
+    });
+    return matches.sort((left, right) => {
+      if (rosterSort === "name") return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+      if (rosterSort === "level") return right.level - left.level || left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+      const leftItemLevel = rosterItemLevel(left, itemLevels);
+      const rightItemLevel = rosterItemLevel(right, itemLevels);
+      return rightItemLevel - leftItemLevel || left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+    });
+  }, [roster, search, factionFilters, rosterSort, itemLevels]);
   const filteredHistory = useMemo(() => {
     const needle = historySearch.trim().toLowerCase();
     return needle ? completed.filter((quest) => `${quest.id} ${quest.title}`.toLowerCase().includes(needle)) : completed;
@@ -608,6 +667,27 @@ export default function Aquarium() {
   }, [connectionKey, connection, selectedGuid, selectedBot]);
 
   useEffect(() => {
+    if (!connection || rosterSort !== "itemLevel") return;
+    const missingBots = roster.filter((bot) => !(bot.itemLevel && bot.itemLevel > 0) && !Object.hasOwn(itemLevels, bot.guid));
+    if (!missingBots.length) return;
+    let cancelled = false;
+    const loadItemLevels = async () => {
+      const results = await Promise.all(missingBots.map(async (bot) => {
+        try {
+          const data = await aquariumRequest<Snapshot>(connection, "inspect", bot.guid);
+          return { guid: bot.guid, level: itemLevelFromSnapshot(data) };
+        } catch {
+          return { guid: bot.guid, level: 0 };
+        }
+      }));
+      if (cancelled) return;
+      setItemLevels((current) => results.reduce((next, result) => ({ ...next, [result.guid]: result.level }), current));
+    };
+    void loadItemLevels();
+    return () => { cancelled = true; };
+  }, [connection, roster, rosterSort, itemLevels]);
+
+  useEffect(() => {
     if (tab !== "history" || !connection || !selectedGuid) return;
     let cancelled = false;
     const loadHistory = async () => {
@@ -630,6 +710,7 @@ export default function Aquarium() {
       const data = await aquariumRequest<{ bots: RosterBot[] }>(connectionDraft, "roster");
       setConnection(connectionDraft);
       setRoster(data.bots);
+      setItemLevels({});
       setSelectedGuid(data.bots[0]?.guid ?? 0);
       localStorage.setItem("altbot-aquarium-connection", JSON.stringify(connectionDraft));
       setShowConnection(false);
@@ -643,6 +724,7 @@ export default function Aquarium() {
   function useDemo() {
     setConnection(null);
     setRoster(DEMO_ROSTER);
+    setItemLevels({});
     setSelectedGuid(DEMO_ROSTER[0].guid);
     setSnapshot(demoSnapshot(DEMO_ROSTER[0]));
     setCompleted(DEMO_COMPLETED);
@@ -669,21 +751,47 @@ export default function Aquarium() {
       <div className="workspace">
         <aside className="roster-panel panel">
           <div className="panel-heading roster-heading">
-            <div><p className="eyebrow">THE COHORT</p><h2>{roster.length} altbots</h2></div>
+            <div><p className="eyebrow">THE COHORT</p><h2>{filteredRoster.length === roster.length ? roster.length : `${filteredRoster.length}/${roster.length}`} altbots</h2></div>
             <span className="online-count">{roster.filter((bot) => bot.online).length} awake</span>
           </div>
           <label className="search-box"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a bot, class, or zone" aria-label="Find an altbot" /></label>
+          <div className="cohort-controls">
+            <div className="faction-filters" aria-label="Faction filters">
+              <span className="control-label">Show</span>
+              {(["alliance", "horde"] as Faction[]).map((faction) => (
+                <label className={`faction-toggle ${faction} ${factionFilters[faction] ? "active" : ""}`} key={faction}>
+                  <input
+                    type="checkbox"
+                    checked={factionFilters[faction]}
+                    onChange={() => setFactionFilters((current) => ({ ...current, [faction]: !current[faction] }))}
+                    aria-label={`Show ${FACTION_LABELS[faction]}`}
+                  />
+                  <span className="toggle-track" aria-hidden="true"><i /></span>
+                  <span>{FACTION_LABELS[faction]}</span>
+                </label>
+              ))}
+            </div>
+            <label className="sort-control">
+              <span className="control-label">Sort by</span>
+              <select value={rosterSort} onChange={(event) => setRosterSort(event.target.value as RosterSort)} aria-label="Sort the cohort">
+                <option value="name">Name</option>
+                <option value="level">Level</option>
+                <option value="itemLevel">Item level</option>
+              </select>
+            </label>
+          </div>
           <div className="roster-list">
-            {filteredRoster.map((bot) => {
-              const botClass = CLASSES[bot.classId] ?? { name: "Unknown", color: "#82b7ad", sigil: "?" };
+            {filteredRoster.length ? filteredRoster.map((bot) => {
+              const botClass = CLASSES[bot.classId] ?? { name: "Unknown", color: "#82b7ad", sigil: "?", icon: "question" as ClassIcon };
+              const botItemLevel = rosterItemLevel(bot, itemLevels);
               return (
                 <button key={bot.guid} className={`roster-card ${bot.guid === selectedGuid ? "selected" : ""}`} onClick={() => setSelectedGuid(bot.guid)} style={{ "--bot-color": botClass.color } as CSSProperties}>
-                  <span className="roster-avatar">{botClass.sigil}</span>
-                  <span className="roster-copy"><strong>{bot.name}</strong><small>Lv {bot.level} {botClass.name}</small><span>{bot.online ? bot.area || "Somewhere suspicious" : "Sleeping"}</span></span>
+                  <span className="roster-avatar"><ClassIcon icon={botClass.icon} /></span>
+                  <span className="roster-copy"><strong>{bot.name}</strong><small>Lv {bot.level} {RACES[bot.raceId] ?? "Unknown"} {botClass.name} · iLvl {botItemLevel || "—"}</small><span>{bot.online ? bot.area || "Somewhere suspicious" : "Sleeping"}</span></span>
                   <span className={`state-dot ${bot.online ? bot.state.replace("-", "") : "offline"}`} />
                 </button>
               );
-            })}
+            }) : <div className="roster-empty">No altbots match these filters.</div>}
           </div>
           <div className="roster-footer"><span>Refreshes every 10s</span><span>{connection ? "SOAP" : "Sample cohort"}</span></div>
         </aside>
