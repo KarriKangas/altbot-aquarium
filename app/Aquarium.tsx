@@ -1,7 +1,8 @@
 "use client";
 
-import type { CSSProperties, FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, FormEvent, MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Connection = { url: string; user: string; password: string };
 type ItemData = {
@@ -13,6 +14,16 @@ type ItemData = {
   durability: number;
   maxDurability: number;
   soulbound: boolean;
+  itemLevel: number;
+  requiredLevel: number;
+  armor: number;
+  damageMin: number;
+  damageMax: number;
+  speed: number;
+  vendorValue: number;
+  stats: { type: number; value: number }[];
+  enchants: { id: number; name: string }[];
+  gems: { id: number; name: string }[];
 };
 type RosterBot = {
   guid: number;
@@ -33,6 +44,16 @@ type Objective = {
   id: number;
   current: number;
   required: number;
+  name?: string;
+  icon?: string;
+  item?: ItemData;
+};
+type QuestRewards = {
+  guaranteed?: ItemData[];
+  choices?: ItemData[];
+  money?: number;
+  xp?: number;
+  honor?: number;
 };
 type QuestData = {
   id: number;
@@ -40,6 +61,7 @@ type QuestData = {
   status: number;
   timerMs: number;
   objectives: Objective[];
+  rewards?: QuestRewards;
 };
 type Snapshot = {
   version: number;
@@ -127,6 +149,13 @@ const EQUIPMENT_LEFT = [0, 1, 2, 14, 4, 3, 18, 8];
 const EQUIPMENT_RIGHT = [9, 5, 6, 7, 10, 11, 12, 13];
 const EQUIPMENT_BOTTOM = [15, 16, 17];
 const QUALITY_NAMES = ["Poor", "Common", "Uncommon", "Rare", "Epic", "Legendary"];
+const STAT_NAMES: Record<number, string> = {
+  0: "Mana", 1: "Health", 3: "Agility", 4: "Strength", 5: "Intellect", 6: "Spirit", 7: "Stamina",
+  12: "Defense rating", 13: "Dodge rating", 14: "Parry rating", 15: "Block rating", 31: "Hit rating",
+  32: "Critical strike rating", 35: "Resilience rating", 36: "Haste rating", 37: "Expertise rating",
+  38: "Attack power", 39: "Ranged attack power", 43: "Mana per 5 sec", 44: "Armor penetration rating",
+  45: "Spell power", 47: "Spell penetration", 48: "Block value",
+};
 
 function mockItem(
   id: number,
@@ -137,7 +166,12 @@ function mockItem(
   durability = 0,
   maxDurability = 0,
 ): ItemData {
-  return { id, name, quality, icon, count, durability, maxDurability, soulbound: quality > 1 };
+  return {
+    id, name, quality, icon, count, durability, maxDurability, soulbound: quality > 1,
+    itemLevel: 28, requiredLevel: 23, armor: maxDurability ? 54 : 0, damageMin: 0, damageMax: 0,
+    speed: 0, vendorValue: Math.max(1, id * 3), stats: quality > 1 ? [{ type: 7, value: 5 }] : [],
+    enchants: [], gems: [],
+  };
 }
 
 const DEMO_ROSTER: RosterBot[] = [
@@ -203,10 +237,38 @@ const DEMO_BAGS: Snapshot["bags"] = [
 ];
 
 const DEMO_QUESTS: QuestData[] = [
-  { id: 1010, title: "Bathran's Hair", status: 3, timerMs: 0, objectives: [{ kind: "item", id: 5437, current: 3, required: 5 }] },
-  { id: 1056, title: "Journey to Stonetalon Peak", status: 3, timerMs: 0, objectives: [] },
-  { id: 1022, title: "The Howling Vale", status: 1, timerMs: 0, objectives: [{ kind: "object", id: 19027, current: 1, required: 1 }] },
-  { id: 976, title: "Supplies to Auberdine", status: 3, timerMs: 438000, objectives: [{ kind: "item", id: 12342, current: 1, required: 1 }] },
+  {
+    id: 1010,
+    title: "Bathran's Hair",
+    status: 3,
+    timerMs: 0,
+    objectives: [{ kind: "item", id: 5437, current: 3, required: 5, item: mockItem(5437, "Bathran's Hair", 1, "inv_misc_herb_08") }],
+    rewards: { guaranteed: [mockItem(5465, "Small Spider Leg", 1, "inv_misc_food_09", 3)], money: 4200, xp: 850 },
+  },
+  {
+    id: 1056,
+    title: "Journey to Stonetalon Peak",
+    status: 3,
+    timerMs: 0,
+    objectives: [{ kind: "creature", id: 16534, name: "Stonetalon Protector", current: 0, required: 6 }],
+    rewards: { guaranteed: [mockItem(17056, "Light Feather", 1, "inv_feather_04", 5)], money: 1800, xp: 1200 },
+  },
+  {
+    id: 1022,
+    title: "The Howling Vale",
+    status: 1,
+    timerMs: 0,
+    objectives: [{ kind: "object", id: 19027, name: "Howling Vale Totem", current: 1, required: 1 }],
+    rewards: { choices: [mockItem(15230, "Ridge Cleaver", 2, "inv_axe_01"), mockItem(7002, "Arctic Buckler", 2, "inv_shield_09")], money: 7600, xp: 1800, honor: 10 },
+  },
+  {
+    id: 976,
+    title: "Supplies to Auberdine",
+    status: 3,
+    timerMs: 438000,
+    objectives: [{ kind: "item", id: 12342, current: 1, required: 1, item: mockItem(12342, "Blackwood Grain", 1, "inv_misc_food_14") }],
+    rewards: { guaranteed: [mockItem(929, "Healing Potion", 1, "inv_potion_51", 2)], money: 3200, xp: 950 },
+  },
 ];
 const DEMO_COMPLETED: CompletedQuest[] = [
   { id: 456, title: "The Balance of Nature" },
@@ -279,20 +341,157 @@ function money(copper: number) {
   };
 }
 
+const OBJECTIVE_LABELS: Record<Objective["kind"], string> = {
+  creature: "Creature",
+  object: "GameObject",
+  item: "Item",
+  player: "Player",
+};
+
+function itemIconUrl(icon: string): string {
+  return icon.startsWith("http")
+    ? icon
+    : `https://wow.zamimg.com/images/wow/icons/large/${icon.toLowerCase()}.jpg`;
+}
+
+function objectiveName(objective: Objective): string {
+  return objective.item?.name || objective.name || `${OBJECTIVE_LABELS[objective.kind]} #${objective.id}`;
+}
+
+function findSnapshotItem(snapshot: Snapshot, itemId: number): ItemData | undefined {
+  for (const entry of snapshot.equipment) {
+    if (entry.item?.id === itemId) return entry.item;
+  }
+  for (const bag of snapshot.bags) {
+    for (const item of bag.items) {
+      if (item?.id === itemId) return item;
+    }
+  }
+  return undefined;
+}
+
+function ItemTooltip({ item, x, y }: { item: ItemData; x: number; y: number }) {
+  const value = money(item.vendorValue);
+  return createPortal(
+    <div className="wow-item-tooltip" style={{ left: x, top: y }}>
+      <div className={`tooltip-name quality-text-${Math.min(item.quality, 5)}`}>{item.name}</div>
+      <div>Item Level {item.itemLevel}</div>
+      {item.requiredLevel > 0 && <div>Requires Level {item.requiredLevel}</div>}
+      {item.soulbound && <div>Soulbound</div>}
+      {item.armor > 0 && <div>{item.armor} Armor</div>}
+      {item.damageMax > 0 && <div className="tooltip-split"><span>{item.damageMin.toFixed(0)} - {item.damageMax.toFixed(0)} Damage</span><span>Speed {(item.speed / 1000).toFixed(2)}</span></div>}
+      {item.stats.map((stat, index) => <div key={`${stat.type}-${index}`}>+{stat.value} {STAT_NAMES[stat.type] || `Stat ${stat.type}`}</div>)}
+      {item.enchants.map((enchant) => <div className="tooltip-enchant" key={`e-${enchant.id}`}>{enchant.name}</div>)}
+      {item.gems.map((gem) => <div className="tooltip-gem" key={`g-${gem.id}`}>◆ {gem.name}</div>)}
+      {item.maxDurability > 0 && <div>Durability {item.durability} / {item.maxDurability}</div>}
+      {item.count > 1 && <div>Stack Count: {item.count}</div>}
+      {item.vendorValue > 0 && <div className="tooltip-vendor">Sell Price: {value.gold > 0 && <><i className="coin gold" /> {value.gold}</>} {value.silver > 0 && <><i className="coin silver" /> {value.silver}</>} <i className="coin copper" /> {value.copper}</div>}
+      <div className="tooltip-debug">Item ID: {item.id}</div>
+    </div>,
+    document.body,
+  );
+}
+
 function ItemCell({ item, label, compact = false }: { item: ItemData | null; label?: string; compact?: boolean }) {
   const quality = item ? Math.min(item.quality, QUALITY_NAMES.length - 1) : 0;
-  const tooltip = item
-    ? `${item.name}\nItem ${item.id} · ${QUALITY_NAMES[quality]}${item.count > 1 ? ` · ${item.count}` : ""}`
-    : label || "Empty slot";
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
+  const enter = (event: MouseEvent<HTMLDivElement>) => {
+    if (!item) return;
+    const { clientX, clientY } = event;
+    timer.current = setTimeout(() => setTooltip({
+      x: Math.max(8, Math.min(clientX + 14, window.innerWidth - 340)),
+      y: Math.max(8, Math.min(clientY + 16, window.innerHeight - 340)),
+    }), 85);
+  };
+  const leave = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setTooltip(null);
+  };
   return (
-    <div className={`item-cell quality-${quality} ${compact ? "compact" : ""} ${item ? "filled" : "empty"}`} title={tooltip}>
+    <div className={`item-cell quality-${quality} ${compact ? "compact" : ""} ${item ? "filled" : "empty"}`} aria-label={item?.name || label || "Empty slot"} onMouseEnter={enter} onMouseLeave={leave}>
       {item?.icon ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`https://wow.zamimg.com/images/wow/icons/large/${item.icon.toLowerCase()}.jpg`} alt="" loading="lazy" />
+        <img src={itemIconUrl(item.icon)} alt="" loading="lazy" />
       ) : <span className="empty-rune">·</span>}
       {item && item.count > 1 && <span className="item-count">{item.count}</span>}
       {item && item.maxDurability > 0 && item.durability / item.maxDurability < 0.3 && <span className="broken-mark">!</span>}
+      {item && tooltip && <ItemTooltip item={item} x={tooltip.x} y={tooltip.y} />}
     </div>
+  );
+}
+
+function ObjectiveTooltip({ objective, x, y }: { objective: Objective; x: number; y: number }) {
+  return createPortal(
+    <div className="wow-item-tooltip" style={{ left: x, top: y }}>
+      <div className="tooltip-name">{objectiveName(objective)}</div>
+      <div>{OBJECTIVE_LABELS[objective.kind]} objective</div>
+      <div className="tooltip-debug">Entry ID: {objective.id}</div>
+    </div>,
+    document.body,
+  );
+}
+
+function ObjectiveCell({ objective }: { objective: Objective }) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
+  const enter = (event: MouseEvent<HTMLButtonElement>) => {
+    const { clientX, clientY } = event;
+    timer.current = setTimeout(() => setTooltip({
+      x: Math.max(8, Math.min(clientX + 14, window.innerWidth - 340)),
+      y: Math.max(8, Math.min(clientY + 16, window.innerHeight - 220)),
+    }), 85);
+  };
+  const leave = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setTooltip(null);
+  };
+  const icon = objective.icon ? itemIconUrl(objective.icon) : "";
+  return (
+    <button type="button" className="objective-cell" aria-label={objectiveName(objective)} onMouseEnter={enter} onMouseLeave={leave}>
+      {icon ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={icon} alt="" loading="lazy" />
+      ) : <span className="objective-glyph">{OBJECTIVE_LABELS[objective.kind][0]}</span>}
+      {tooltip && <ObjectiveTooltip objective={objective} x={tooltip.x} y={tooltip.y} />}
+    </button>
+  );
+}
+
+function ObjectiveTarget({ objective, snapshot }: { objective: Objective; snapshot: Snapshot }) {
+  const item = objective.item ?? (objective.kind === "item" ? findSnapshotItem(snapshot, objective.id) : undefined);
+  return (
+    <div className="objective-target">
+      {item ? <ItemCell item={item} compact label={objectiveName(objective)} /> : <ObjectiveCell objective={objective} />}
+      <span className="objective-target-name">{objectiveName(objective)}</span>
+    </div>
+  );
+}
+
+function RewardItem({ item }: { item: ItemData }) {
+  return (
+    <div className="quest-reward-item">
+      <ItemCell item={item} compact />
+      <span>{item.name}{item.count > 1 ? ` ×${item.count}` : ""}</span>
+    </div>
+  );
+}
+
+function QuestRewardPanel({ rewards }: { rewards?: QuestRewards }) {
+  const guaranteed = rewards?.guaranteed ?? [];
+  const choices = rewards?.choices ?? [];
+  const hasMoney = (rewards?.money ?? 0) > 0;
+  const hasExtras = (rewards?.xp ?? 0) > 0 || (rewards?.honor ?? 0) > 0;
+  if (!guaranteed.length && !choices.length && !hasMoney && !hasExtras) return null;
+  const rewardCount = guaranteed.length + choices.length;
+  return (
+    <details className="quest-rewards">
+      <summary>Rewards <span>{rewardCount || "details"}</span></summary>
+      {guaranteed.length > 0 && <div className="quest-reward-group"><strong>Guaranteed</strong><div className="quest-reward-items">{guaranteed.map((item) => <RewardItem key={item.id} item={item} />)}</div></div>}
+      {choices.length > 0 && <div className="quest-reward-group"><strong>Choose one</strong><div className="quest-reward-items">{choices.map((item) => <RewardItem key={item.id} item={item} />)}</div></div>}
+      {hasMoney && <div className="quest-reward-stat">Money <span>{(() => { const value = money(rewards?.money ?? 0); return <>{value.gold > 0 && <><i className="coin gold" /> {value.gold} </>}{value.silver > 0 && <><i className="coin silver" /> {value.silver} </>}<i className="coin copper" /> {value.copper}</>; })()}</span></div>}
+      {hasExtras && <div className="quest-reward-stat">Extra <span>{(rewards?.xp ?? 0) > 0 && `${rewards?.xp?.toLocaleString("en-US")} XP`}{(rewards?.xp ?? 0) > 0 && (rewards?.honor ?? 0) > 0 ? " · " : ""}{(rewards?.honor ?? 0) > 0 && `${rewards?.honor} honor`}</span></div>}
+    </details>
   );
 }
 
@@ -312,7 +511,7 @@ function Meter({ label, current, maximum, tone }: { label: string; current: numb
     <div className="meter-block">
       <div className="meter-copy"><span>{label}</span><span>{value}%</span></div>
       <div className="meter-track"><div className={`meter-fill ${tone}`} style={{ width: `${value}%` }} /></div>
-      <div className="meter-numbers">{current.toLocaleString()} / {maximum.toLocaleString()}</div>
+      <div className="meter-numbers">{current.toLocaleString("en-US")} / {maximum.toLocaleString("en-US")}</div>
     </div>
   );
 }
@@ -330,7 +529,7 @@ export default function Aquarium() {
   const [historySearch, setHistorySearch] = useState("");
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const connectionKey = connection ? JSON.stringify(connection) : "demo";
   const selectedBot = roster.find((bot) => bot.guid === selectedGuid) ?? roster[0];
@@ -541,7 +740,8 @@ export default function Aquarium() {
                 <div className="tab-intro"><div><p className="eyebrow">CURRENT QUEST LOG</p><h3>{snapshot.quests.length} ongoing stories</h3></div><span>{snapshot.quests.filter((quest) => quest.status === 1).length} ready</span></div>
                 <div className="quest-list">{snapshot.quests.map((quest) => <article className="quest-card" key={quest.id}>
                   <div className="quest-title-row"><span className={`quest-status status-${quest.status}`} /><div><h4>{quest.title}</h4><span>Quest #{quest.id} · {quest.status === 1 ? "Ready to turn in" : quest.status === 5 ? "Failed" : "In progress"}</span></div>{quest.timerMs > 0 && <strong className="quest-timer">{Math.ceil(quest.timerMs / 60000)}m</strong>}</div>
-                  {quest.objectives.length > 0 ? <div className="objectives">{quest.objectives.map((objective, index) => <div className="objective" key={`${objective.kind}-${objective.id}-${index}`}><div><span>{objective.kind} #{objective.id}</span><strong>{objective.current}/{objective.required}</strong></div><div className="objective-track"><i style={{ width: `${percent(objective.current, objective.required)}%` }} /></div></div>)}</div> : <p className="quest-quiet">No countable objective. Probably walking or talking.</p>}
+                  {quest.objectives.length > 0 ? <div className="objectives">{quest.objectives.map((objective, index) => <div className="objective" key={`${objective.kind}-${objective.id}-${index}`}><div><ObjectiveTarget objective={objective} snapshot={snapshot} /><strong>{objective.current}/{objective.required}</strong></div><div className="objective-track"><i style={{ width: `${percent(objective.current, objective.required)}%` }} /></div></div>)}</div> : <p className="quest-quiet">No countable objective. Probably walking or talking.</p>}
+                  <QuestRewardPanel rewards={quest.rewards} />
                 </article>)}</div>
               </div>}
 
@@ -552,7 +752,7 @@ export default function Aquarium() {
                 <p className="history-footnote">Dropped quest history will join us later, once it actually exists.</p>
               </div>}
 
-              <footer className="panel-footer"><span><i className={connection ? "pulse" : ""} /> Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span><span>{connection ? "Selected bot refreshes every 2s" : "Exploring sample data"}</span></footer>
+              <footer className="panel-footer"><span><i className={connection ? "pulse" : ""} /> Updated {lastUpdated ? lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "Starting"}</span><span>{connection ? "Selected bot refreshes every 2s" : "Exploring sample data"}</span></footer>
             </section>
           </div>
         </section>

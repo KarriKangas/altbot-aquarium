@@ -710,6 +710,37 @@ h2 {
   top: 0;
 }
 
+.wow-item-tooltip {
+  background: linear-gradient(145deg, rgba(15, 12, 21, 0.98), rgba(2, 4, 10, 0.98));
+  border: 1px solid #8c712d;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px #241800, 0 8px 24px rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 320px;
+  min-width: 235px;
+  padding: 10px 11px 9px;
+  pointer-events: none;
+  position: fixed;
+  text-shadow: 1px 1px #000;
+  z-index: 10000;
+}
+
+.tooltip-name { font-weight: 700; margin-bottom: 4px; }
+.quality-text-0 { color: #9d9d9d; }
+.quality-text-1 { color: #fff; }
+.quality-text-2 { color: #1eff00; }
+.quality-text-3 { color: #0070dd; }
+.quality-text-4 { color: #a335ee; }
+.quality-text-5 { color: #ff8000; }
+.tooltip-split { display: flex; gap: 16px; justify-content: space-between; }
+.tooltip-enchant, .tooltip-gem { color: #1eff00; }
+.tooltip-vendor { align-items: center; display: flex; gap: 3px; margin-top: 5px; }
+.tooltip-vendor .coin { display: inline-block; flex: 0 0 auto; }
+.tooltip-debug { color: #6f747e; font-size: 10px; margin-top: 6px; }
+
 .doll-center {
   min-height: 380px;
   overflow: hidden;
@@ -1138,6 +1169,54 @@ h2 {
   margin-top: 7px;
 }
 
+.objective-target {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  text-transform: none;
+}
+
+.objective-target .item-cell,
+.objective-cell {
+  flex: 0 0 30px;
+  height: 30px;
+  width: 30px;
+}
+
+.objective-target-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.objective-cell {
+  align-items: center;
+  appearance: none;
+  background: rgba(1, 14, 17, 0.6);
+  border: 1px solid rgba(142, 209, 192, 0.25);
+  border-radius: 5px;
+  cursor: help;
+  display: flex;
+  font: inherit;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+}
+
+.objective-cell img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.objective-glyph {
+  color: var(--amber);
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+
 .objective > div:first-child {
   color: var(--muted);
   font-size: 8px;
@@ -1154,6 +1233,74 @@ h2 {
   background: var(--amber);
   display: block;
   height: 100%;
+}
+
+.quest-rewards {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.quest-rewards summary {
+  color: var(--amber);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+  list-style-position: inside;
+  text-transform: uppercase;
+}
+
+.quest-rewards summary span {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  margin-left: 5px;
+}
+
+.quest-reward-group {
+  margin: 10px 0 0 18px;
+}
+
+.quest-reward-group > strong {
+  color: var(--muted);
+  display: block;
+  font-size: 8px;
+  margin-bottom: 7px;
+  text-transform: uppercase;
+}
+
+.quest-reward-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quest-reward-item {
+  align-items: center;
+  color: #b9d4ce;
+  display: flex;
+  font-size: 9px;
+  gap: 7px;
+  min-width: 130px;
+}
+
+.quest-reward-item .item-cell {
+  flex: 0 0 32px;
+  height: 32px;
+  width: 32px;
+}
+
+.quest-reward-stat {
+  color: var(--muted);
+  display: flex;
+  font-size: 9px;
+  justify-content: space-between;
+  margin: 8px 0 0 18px;
+  max-width: 210px;
+}
+
+.quest-reward-stat > span {
+  color: #b9d4ce;
 }
 
 .quest-quiet,
