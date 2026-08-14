@@ -1,4 +1,4 @@
-type AquariumMode = "roster" | "inspect" | "history";
+type AquariumMode = "roster" | "inspect" | "history" | "benchmarks";
 
 type AquariumRequest = {
   mode?: AquariumMode;
@@ -15,6 +15,7 @@ const COMMANDS: Record<AquariumMode, string> = {
   roster: ".strictbots aquarium roster",
   inspect: ".strictbots aquarium inspect",
   history: ".strictbots aquarium history",
+  benchmarks: ".strictbots aquarium benchmarks",
 };
 
 function escapeXml(value: string): string {
