@@ -848,6 +848,7 @@ h2 {
 }
 
 .tooltip-name { font-weight: 700; margin-bottom: 4px; }
+.tooltip-armor-type { color: #d8d2b8; }
 .quality-text-0 { color: #9d9d9d; }
 .quality-text-1 { color: #fff; }
 .quality-text-2 { color: #1eff00; }

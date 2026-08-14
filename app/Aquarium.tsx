@@ -17,6 +17,7 @@ type ItemData = {
   itemLevel: number;
   requiredLevel: number;
   armor: number;
+  armorSubclass?: number;
   damageMin: number;
   damageMax: number;
   speed: number;
@@ -181,6 +182,17 @@ const STAT_NAMES: Record<number, string> = {
   38: "Attack power", 39: "Ranged attack power", 43: "Mana per 5 sec", 44: "Armor penetration rating",
   45: "Spell power", 47: "Spell penetration", 48: "Block value",
 };
+const ARMOR_SUBCLASS_NAMES: Record<number, string> = {
+  1: "Cloth",
+  2: "Leather",
+  3: "Mail",
+  4: "Plate",
+  6: "Shield",
+};
+
+function itemArmorType(item: Pick<ItemData, "armorSubclass">): string | null {
+  return typeof item.armorSubclass === "number" ? ARMOR_SUBCLASS_NAMES[item.armorSubclass] ?? null : null;
+}
 
 function mockItem(
   id: number,
@@ -190,9 +202,10 @@ function mockItem(
   count = 1,
   durability = 0,
   maxDurability = 0,
+  armorSubclass?: number,
 ): ItemData {
   return {
-    id, name, quality, icon, count, durability, maxDurability, soulbound: quality > 1,
+    id, name, quality, icon, count, durability, maxDurability, soulbound: quality > 1, armorSubclass,
     itemLevel: 28, requiredLevel: 23, armor: maxDurability ? 54 : 0, damageMin: 0, damageMax: 0,
     speed: 0, vendorValue: Math.max(1, id * 3), stats: quality > 1 ? [{ type: 7, value: 5 }] : [],
     enchants: [], gems: [],
@@ -209,23 +222,23 @@ const DEMO_ROSTER: RosterBot[] = [
 ];
 
 const DEMO_EQUIPMENT: Snapshot["equipment"] = [
-  mockItem(12018, "Conservator Helm", 2, "inv_helmet_08", 1, 41, 45),
+  mockItem(12018, "Conservator Helm", 2, "inv_helmet_08", 1, 41, 45, 2),
   mockItem(10711, "Dragon's Blood Necklace", 3, "inv_jewelry_necklace_07"),
-  mockItem(14170, "Buccaneer's Mantle", 2, "inv_shoulder_09", 1, 34, 40),
-  mockItem(2575, "Red Linen Shirt", 1, "inv_shirt_red_01"),
-  mockItem(2800, "Black Velvet Robes", 2, "inv_chest_cloth_25", 1, 61, 70),
-  mockItem(6726, "Razzeric's Customized Seatbelt", 2, "inv_belt_06", 1, 24, 25),
-  mockItem(14242, "Darkmist Pants", 2, "inv_pants_09", 1, 38, 45),
+  mockItem(14170, "Buccaneer's Mantle", 2, "inv_shoulder_09", 1, 34, 40, 1),
+  mockItem(2575, "Red Linen Shirt", 1, "inv_shirt_red_01", 1, 0, 0, 1),
+  mockItem(2800, "Black Velvet Robes", 2, "inv_chest_cloth_25", 1, 61, 70, 1),
+  mockItem(6726, "Razzeric's Customized Seatbelt", 2, "inv_belt_06", 1, 24, 25, 2),
+  mockItem(14242, "Darkmist Pants", 2, "inv_pants_09", 1, 38, 45, 1),
   mockItem(9454, "Acidic Walkers", 3, "inv_boots_05", 1, 42, 45),
   mockItem(9821, "Durable Bracers", 2, "inv_bracer_07", 1, 22, 25),
-  mockItem(9910, "Royal Gloves", 2, "inv_gauntlets_17", 1, 27, 30),
+  mockItem(9910, "Royal Gloves", 2, "inv_gauntlets_17", 1, 27, 30, 1),
   mockItem(11965, "Quartz Ring", 2, "inv_jewelry_ring_10"),
   mockItem(12014, "Arctic Ring", 2, "inv_jewelry_ring_12"),
   mockItem(17774, "Mark of the Chosen", 3, "inv_jewelry_talisman_08"),
   null,
-  mockItem(7411, "Infiltrator Cloak", 2, "inv_misc_cape_18", 1, 31, 35),
+  mockItem(7411, "Infiltrator Cloak", 2, "inv_misc_cape_18", 1, 31, 35, 1),
   mockItem(15230, "Ridge Cleaver", 2, "inv_axe_01", 1, 54, 60),
-  mockItem(7002, "Arctic Buckler", 2, "inv_shield_09", 1, 46, 50),
+  mockItem(7002, "Arctic Buckler", 2, "inv_shield_09", 1, 46, 50, 6),
   mockItem(8184, "Firestarter", 2, "inv_weapon_rifle_04", 1, 36, 40),
   null,
 ].map((item, slot) => ({ slot, item }));
@@ -417,10 +430,12 @@ function findSnapshotItem(snapshot: Snapshot, itemId: number): ItemData | undefi
 
 function ItemTooltip({ item, x, y }: { item: ItemData; x: number; y: number }) {
   const value = money(item.vendorValue);
+  const armorType = itemArmorType(item);
   return createPortal(
     <div className="wow-item-tooltip" style={{ left: x, top: y }}>
       <div className={`tooltip-name quality-text-${Math.min(item.quality, 5)}`}>{item.name}</div>
       <div>Item Level {item.itemLevel}</div>
+      {armorType && <div className="tooltip-armor-type">Armor Type: {armorType}</div>}
       {item.requiredLevel > 0 && <div>Requires Level {item.requiredLevel}</div>}
       {item.soulbound && <div>Soulbound</div>}
       {item.armor > 0 && <div>{item.armor} Armor</div>}
