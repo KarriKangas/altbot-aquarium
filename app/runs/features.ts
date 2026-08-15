@@ -1,2 +1,2 @@
 // Each commit turns on one more lazy Aquarium dashboard slice.
-export const FEATURE_STEP = 6;
+export const FEATURE_STEP = 7;
