@@ -1,0 +1,15 @@
+import { FEATURE_STEP } from "./features";
+import type { LiveBot } from "./model";
+import { activityFor, formatMoney, median } from "./model";
+import { Metric, SectionTitle, emptyStyle, metricGridStyle, sectionStyle } from "./ui";
+
+export function LiveSections({ roster }: { roster: LiveBot[] }) {
+  const activities = new Map<string, number>(); for (const bot of roster) activities.set(activityFor(bot), (activities.get(activityFor(bot)) ?? 0) + 1); const activityRows = [...activities.entries()].sort((a, b) => b[1] - a[1]);
+  const areas = new Map<string, number>(); for (const bot of roster) if (bot.online && bot.area) areas.set(bot.area, (areas.get(bot.area) ?? 0) + 1); const areaRows = [...areas.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8);
+  const online = roster.filter((bot) => bot.online); const stats = { online: online.length, level: median(online.map((bot) => bot.level)), gold: median(online.map((bot) => bot.gold)), bag: median(online.filter((bot) => bot.bagTotal > 0).map((bot) => bot.bagUsed / bot.bagTotal * 100)), itemLevel: median(online.flatMap((bot) => bot.itemLevel && bot.itemLevel > 0 ? [bot.itemLevel] : [])) };
+  return <>
+    {FEATURE_STEP >= 10 && <section style={{ ...sectionStyle, marginBottom: 18 }}><SectionTitle eyebrow="RIGHT NOW" title="Live cohort activity" note="Current roster poll. Refreshes every 10 seconds while this page is open." />{activityRows.length ? <div style={metricGridStyle}>{activityRows.map(([label, count]) => <Metric key={label} label={label} value={String(count)} detail={`${roster.length ? Math.round(count / roster.length * 100) : 0}% of roster`} />)}</div> : <div style={emptyStyle}>No live fish visible yet.</div>}</section>}
+    {FEATURE_STEP >= 11 && <section style={{ ...sectionStyle, marginBottom: 18 }}><SectionTitle eyebrow="WHERE DID THEY GO" title="Current area breakdown" note="Top occupied areas among awake bots." />{areaRows.length ? <div style={{ display: "grid", gap: 9 }}>{areaRows.map(([area, count]) => <div key={area} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "9px 0", borderBottom: "1px solid #17302d" }}><strong>{area}</strong><span style={{ color: "#8fa6a1" }}>{count} bot{count === 1 ? "" : "s"}</span></div>)}</div> : <div style={emptyStyle}>Everyone is sleeping or somewhere unnamed.</div>}</section>}
+    {FEATURE_STEP >= 12 && <section style={{ ...sectionStyle, marginBottom: 18 }}><SectionTitle eyebrow="POCKET CHECK" title="Live gold / bags / item level" note={`${stats.online} bots currently awake`} /><div style={metricGridStyle}><Metric label="Median level" value={stats.level?.toFixed(1) ?? "—"} detail="awake bots" /><Metric label="Median gold" value={formatMoney(stats.gold)} detail="awake bots" /><Metric label="Median bag full" value={stats.bag === null ? "—" : `${stats.bag.toFixed(0)}%`} detail="used slots / total slots" /><Metric label="Median item level" value={stats.itemLevel?.toFixed(1) ?? "—"} detail="where roster has it" /></div></section>}
+  </>;
+}

@@ -1,0 +1,21 @@
+import { FEATURE_STEP } from "./features";
+import type { RunSummary } from "./model";
+import { CLASSES, LEVELS, RACES, factionForRace, groupStats, lastKnownSeconds } from "./model";
+import { CompactStatsTable, Leaderboard, SectionTitle, barFillStyle, barTrackStyle, emptyStyle, sectionStyle, smallHeadingStyle } from "./ui";
+
+export function AnalyticsBreakdowns({ rows, levelups }: { rows: RunSummary[]; levelups: Map<number, Map<number, number>> }) {
+  const latest = rows.find((row) => row.bots.length) ?? null; if (!latest) return null;
+  const classes = groupStats(latest.bots, (bot) => String(bot.classId), (key) => CLASSES[Number(key)] ?? `Class ${key}`, levelups);
+  const races = groupStats(latest.bots, (bot) => String(bot.raceId), (key) => RACES[Number(key)] ?? `Race ${key}`, levelups);
+  const factions = groupStats(latest.bots, (bot) => factionForRace(bot.raceId), (key) => key === "alliance" ? "Alliance" : key === "horde" ? "Horde" : "Unknown", levelups);
+  const counts = new Map<number, number>(); for (const bot of latest.bots) counts.set(bot.level, (counts.get(bot.level) ?? 0) + 1); const distribution = [...counts.entries()].sort((a, b) => a[0] - b[0]);
+  const fastest = [...latest.bots].sort((a, b) => b.level - a.level || lastKnownSeconds(a, levelups) - lastKnownSeconds(b, levelups)).slice(0, 5);
+  const slowest = [...latest.bots].sort((a, b) => a.level - b.level || lastKnownSeconds(b, levelups) - lastKnownSeconds(a, levelups)).slice(0, 5);
+  return <>
+    {FEATURE_STEP >= 5 && <section style={{ ...sectionStyle, marginBottom: 18 }}><SectionTitle eyebrow="WHO IS COOKING" title="Class breakdown" note="Latest filtered run." /><CompactStatsTable rows={classes} /></section>}
+    {FEATURE_STEP >= 6 && <section style={{ ...sectionStyle, marginBottom: 18 }}><SectionTitle eyebrow="WHO WAS BORN WHERE" title="Race & faction breakdown" note="Same run, different flavor of idiot." /><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 16 }}><div><h3 style={smallHeadingStyle}>Factions</h3><CompactStatsTable rows={factions} /></div><div><h3 style={smallHeadingStyle}>Races</h3><CompactStatsTable rows={races} /></div></div></section>}
+    {FEATURE_STEP >= 7 && <section style={{ ...sectionStyle, marginBottom: 18 }}><SectionTitle eyebrow="THE PILE" title="Final level distribution" note="Where everybody ended up." />{distribution.length ? <div style={{ display: "grid", gap: 8 }}>{(() => { const max = Math.max(...distribution.map(([, count]) => count)); return distribution.map(([level, count]) => <div key={level} style={{ display: "grid", gridTemplateColumns: "64px 1fr 44px", gap: 10, alignItems: "center" }}><strong>Lv {level}</strong><div style={barTrackStyle}><i style={{ ...barFillStyle, width: `${count / max * 100}%` }} /></div><span style={{ color: "#8fa6a1" }}>{count}</span></div>); })()}</div> : <div style={emptyStyle}>No levels to pile up.</div>}</section>}
+    {FEATURE_STEP >= 8 && <section style={{ ...sectionStyle, marginBottom: 18 }}><SectionTitle eyebrow="HEROES & DISASTERS" title="Fastest / slowest bots" note="Sorted mostly by final level, because this is not the Olympics." /><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}><Leaderboard title="Champions" bots={fastest} levelups={levelups} /><Leaderboard title="Beautiful disasters" bots={slowest} levelups={levelups} /></div></section>}
+    {FEATURE_STEP >= 9 && <section style={{ ...sectionStyle, marginBottom: 18 }}><SectionTitle eyebrow="HOW MANY ACTUALLY GOT THERE" title="Milestone reach rate" note="Stops two turbo hunters from claiming the whole cohort is amazing." /><div style={{ display: "grid", gap: 14 }}>{LEVELS.map((level) => { const item = latest.milestones[level]; const percent = item.total ? item.reached / item.total * 100 : 0; return <div key={level}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><strong>Level {level}</strong><span style={{ color: "#8fa6a1" }}>{item.reached}/{item.total} · {percent.toFixed(0)}%</span></div><div style={barTrackStyle}><i style={{ ...barFillStyle, width: `${percent}%` }} /></div></div>; })}</div></section>}
+  </>;
+}
