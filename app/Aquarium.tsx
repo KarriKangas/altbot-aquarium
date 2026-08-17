@@ -596,7 +596,7 @@ export default function Aquarium() {
 
   const connectionKey = connection ? JSON.stringify(connection) : "demo";
   const selectedBot = roster.find((bot) => bot.guid === selectedGuid) ?? roster[0];
-  const classInfo = CLASSES[snapshot.classId] ?? { name: "Unknown", color: "#82b7ad", sigil: "?" };
+  const classInfo = CLASSES[snapshot.classId] ?? { name: "Unknown", color: "#82b7ad", sigil: "?", icon: "question" as ClassIcon };
   const coin = money(snapshot.gold);
   const filteredRoster = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -814,7 +814,7 @@ export default function Aquarium() {
         <section className="bot-detail">
           <article className="identity-card panel">
             <div className="identity-primary">
-              <div className="hero-avatar"><span>{classInfo.sigil}</span><i className={selectedBot?.online === false ? "offline" : ""} /></div>
+              <div className="hero-avatar"><ClassIcon icon={classInfo.icon} /><i className={selectedBot?.online === false ? "offline" : ""} /></div>
               <div><p className="eyebrow">SUBJECT #{snapshot.guid}</p><h2>{snapshot.name}</h2><p className="identity-line">Level {snapshot.level} {RACES[snapshot.raceId] ?? "Unknown"} {classInfo.name}<span>·</span> {snapshot.position.areaName}</p></div>
             </div>
             <div className="identity-meters">

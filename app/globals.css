@@ -590,6 +590,12 @@ h2 {
   width: 72px;
 }
 
+.hero-avatar .class-icon {
+  color: var(--class-color);
+  height: 36px;
+  width: 36px;
+}
+
 .hero-avatar span {
   color: var(--class-color);
   font-family: var(--font-display);
