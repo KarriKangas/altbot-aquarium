@@ -101,7 +101,7 @@ type Snapshot = {
   quests: QuestData[];
 };
 type CompletedQuest = { id: number; title: string };
-type AquariumTab = "brain" | "quests" | "history";
+type AquariumTab = "brain" | "quests" | "history" | "abandoned";
 type ApiMode = "roster" | "inspect" | "history";
 type Faction = "alliance" | "horde";
 type RosterSort = "level" | "name" | "itemLevel";
@@ -321,6 +321,10 @@ const DEMO_COMPLETED: CompletedQuest[] = [
   { id: 488, title: "Zenn's Bidding" },
   { id: 489, title: "Seek Redemption!" },
   { id: 918, title: "Timberling Seeds" },
+];
+const DEMO_ABANDONED: CompletedQuest[] = [
+  { id: 474, title: "The Greenwarden" },
+  { id: 489, title: "Seek Redemption!" },
 ];
 
 function demoSnapshot(bot: RosterBot): Snapshot {
@@ -584,12 +588,14 @@ export default function Aquarium() {
   const [selectedGuid, setSelectedGuid] = useState(DEMO_ROSTER[0].guid);
   const [snapshot, setSnapshot] = useState<Snapshot>(() => demoSnapshot(DEMO_ROSTER[0]));
   const [completed, setCompleted] = useState<CompletedQuest[]>(DEMO_COMPLETED);
+  const [abandoned, setAbandoned] = useState<CompletedQuest[]>(DEMO_ABANDONED);
   const [tab, setTab] = useState<AquariumTab>("brain");
   const [search, setSearch] = useState("");
   const [factionFilters, setFactionFilters] = useState<Record<Faction, boolean>>({ alliance: true, horde: true });
   const [rosterSort, setRosterSort] = useState<RosterSort>("name");
   const [itemLevels, setItemLevels] = useState<Record<number, number>>({});
   const [historySearch, setHistorySearch] = useState("");
+  const [abandonedSearch, setAbandonedSearch] = useState("");
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -619,6 +625,10 @@ export default function Aquarium() {
     const needle = historySearch.trim().toLowerCase();
     return needle ? completed.filter((quest) => `${quest.id} ${quest.title}`.toLowerCase().includes(needle)) : completed;
   }, [completed, historySearch]);
+  const filteredAbandoned = useMemo(() => {
+    const needle = abandonedSearch.trim().toLowerCase();
+    return needle ? abandoned.filter((quest) => `${quest.id} ${quest.title}`.toLowerCase().includes(needle)) : abandoned;
+  }, [abandoned, abandonedSearch]);
 
   useEffect(() => {
     const saved = localStorage.getItem("altbot-aquarium-connection");
@@ -660,6 +670,7 @@ export default function Aquarium() {
     if (!connection) {
       setSnapshot(demoSnapshot(selectedBot));
       setCompleted(DEMO_COMPLETED);
+      setAbandoned(DEMO_ABANDONED);
       setLastUpdated(new Date());
       return;
     }
@@ -707,8 +718,11 @@ export default function Aquarium() {
     let cancelled = false;
     const loadHistory = async () => {
       try {
-        const data = await aquariumRequest<{ completed: CompletedQuest[] }>(connection, "history", selectedGuid);
-        if (!cancelled) setCompleted(data.completed);
+        const data = await aquariumRequest<{ completed: CompletedQuest[]; abandoned?: CompletedQuest[] }>(connection, "history", selectedGuid);
+        if (!cancelled) {
+          setCompleted(data.completed);
+          setAbandoned(data.abandoned ?? []);
+        }
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Quest history failed.");
       }
@@ -743,6 +757,7 @@ export default function Aquarium() {
     setSelectedGuid(DEMO_ROSTER[0].guid);
     setSnapshot(demoSnapshot(DEMO_ROSTER[0]));
     setCompleted(DEMO_COMPLETED);
+    setAbandoned(DEMO_ABANDONED);
     setError("");
     localStorage.removeItem("altbot-aquarium-connection");
   }
@@ -848,7 +863,7 @@ export default function Aquarium() {
 
             <section className="observatory-panel panel">
               <nav className="tabs" aria-label="Altbot details">
-                {(["brain", "quests", "history"] as AquariumTab[]).map((candidate) => <button key={candidate} className={tab === candidate ? "active" : ""} onClick={() => setTab(candidate)}>{candidate === "brain" ? "Brain" : candidate === "quests" ? `Quests ${snapshot.quests.length}` : `Completed ${completed.length}`}</button>)}
+                {(["brain", "quests", "history", "abandoned"] as AquariumTab[]).map((candidate) => <button key={candidate} className={tab === candidate ? "active" : ""} onClick={() => setTab(candidate)}>{candidate === "brain" ? "Brain" : candidate === "quests" ? `Quests ${snapshot.quests.length}` : candidate === "history" ? `Completed ${completed.length}` : `Abandoned ${abandoned.length}`}</button>)}
               </nav>
 
               {tab === "brain" && <div className="tab-body brain-tab">
@@ -872,7 +887,12 @@ export default function Aquarium() {
                 <div className="tab-intro"><div><p className="eyebrow">REWARDED QUESTS</p><h3>{completed.length} known victories</h3></div></div>
                 <label className="search-box history-search"><span aria-hidden="true">⌕</span><input value={historySearch} onChange={(event) => setHistorySearch(event.target.value)} placeholder="Filter by title or quest ID" aria-label="Filter completed quests" /></label>
                 <div className="history-list">{filteredHistory.map((quest) => <div className="history-row" key={quest.id}><span>#{quest.id}</span><strong>{quest.title}</strong><i>✓</i></div>)}</div>
-                <p className="history-footnote">Dropped quest history will join us later, once it actually exists.</p>
+              </div>}
+
+              {tab === "abandoned" && <div className="tab-body history-tab">
+                <div className="tab-intro"><div><p className="eyebrow">ABANDONED QUESTS</p><h3>{abandoned.length} dropped stories</h3></div></div>
+                <label className="search-box history-search"><span aria-hidden="true">⌕</span><input value={abandonedSearch} onChange={(event) => setAbandonedSearch(event.target.value)} placeholder="Filter by title or quest ID" aria-label="Filter abandoned quests" /></label>
+                <div className="history-list">{filteredAbandoned.map((quest) => <div className="history-row" key={quest.id}><span>#{quest.id}</span><strong>{quest.title}</strong><i className="abandoned-mark">×</i></div>)}</div>
               </div>}
 
               <footer className="panel-footer"><span><i className={connection ? "pulse" : ""} /> Updated {lastUpdated ? lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "Starting"}</span><span>{connection ? "Selected bot refreshes every 2s" : "Exploring sample data"}</span></footer>

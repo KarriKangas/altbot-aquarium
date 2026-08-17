@@ -1040,7 +1040,7 @@ h2 {
 .tabs {
   border-bottom: 1px solid var(--line);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: 0 22px;
 }
 
@@ -1466,6 +1466,11 @@ h2 {
 .history-row i {
   color: #82d29b;
   font-style: normal;
+}
+
+.history-row i.abandoned-mark {
+  color: var(--danger);
+  font-size: 16px;
 }
 
 .history-footnote {
