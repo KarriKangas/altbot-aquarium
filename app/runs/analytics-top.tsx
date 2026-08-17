@@ -6,6 +6,7 @@ import type { RunSummary } from "./model";
 import { LEVELS, formatDuration, formatSignedDuration, runLabel, signed } from "./model";
 import {
   Metric,
+  LevelTimeComparisonChart,
   ProgressionChart,
   SectionTitle,
   emptyStyle,
@@ -79,12 +80,15 @@ export function AnalyticsTop({
       {(() => {
         const left = visible[Math.min(leftIndex, visible.length - 1)];
         const right = visible[Math.min(rightIndex, visible.length - 1)];
-        return <div style={metricGridStyle}>
-          <Metric label="Median level delta" value={signed((left.medianLevel ?? 0) - (right.medianLevel ?? 0))} detail="A minus B" />
-          <Metric label="Average level delta" value={signed((left.averageLevel ?? 0) - (right.averageLevel ?? 0))} detail="A minus B" />
-          <Metric label="Lv10 delta" value={left.milestones[10].medianSeconds !== null && right.milestones[10].medianSeconds !== null ? formatSignedDuration(left.milestones[10].medianSeconds - right.milestones[10].medianSeconds) : "—"} detail="negative is faster" />
-          <Metric label="Lv20 delta" value={left.milestones[20].medianSeconds !== null && right.milestones[20].medianSeconds !== null ? formatSignedDuration(left.milestones[20].medianSeconds - right.milestones[20].medianSeconds) : "—"} detail="negative is faster" />
-        </div>;
+        return <>
+          <div style={metricGridStyle}>
+            <Metric label="Median level delta" value={signed((left.medianLevel ?? 0) - (right.medianLevel ?? 0))} detail="A minus B" />
+            <Metric label="Average level delta" value={signed((left.averageLevel ?? 0) - (right.averageLevel ?? 0))} detail="A minus B" />
+            <Metric label="Lv10 delta" value={left.milestones[10].medianSeconds !== null && right.milestones[10].medianSeconds !== null ? formatSignedDuration(left.milestones[10].medianSeconds - right.milestones[10].medianSeconds) : "—"} detail="negative is faster" />
+            <Metric label="Lv20 delta" value={left.milestones[20].medianSeconds !== null && right.milestones[20].medianSeconds !== null ? formatSignedDuration(left.milestones[20].medianSeconds - right.milestones[20].medianSeconds) : "—"} detail="negative is faster" />
+          </div>
+          <LevelTimeComparisonChart left={left} right={right} levelups={levelups} />
+        </>;
       })()}
     </section>}
   </>;
