@@ -670,7 +670,6 @@ export default function Aquarium() {
     if (!connection) {
       setSnapshot(demoSnapshot(selectedBot));
       setCompleted(DEMO_COMPLETED);
-      setAbandoned(DEMO_ABANDONED);
       setLastUpdated(new Date());
       return;
     }
