@@ -703,7 +703,7 @@ export default function Aquarium() {
   }, [connection, roster, rosterSort, itemLevels]);
 
   useEffect(() => {
-    if (tab !== "history" || !connection || !selectedGuid) return;
+    if (!connection || !selectedGuid) return;
     let cancelled = false;
     const loadHistory = async () => {
       try {
@@ -715,7 +715,7 @@ export default function Aquarium() {
     };
     void loadHistory();
     return () => { cancelled = true; };
-  }, [tab, connectionKey, connection, selectedGuid]);
+  }, [connectionKey, connection, selectedGuid]);
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -848,7 +848,7 @@ export default function Aquarium() {
 
             <section className="observatory-panel panel">
               <nav className="tabs" aria-label="Altbot details">
-                {(["brain", "quests", "history"] as AquariumTab[]).map((candidate) => <button key={candidate} className={tab === candidate ? "active" : ""} onClick={() => setTab(candidate)}>{candidate === "brain" ? "Brain" : candidate === "quests" ? `Quests ${snapshot.quests.length}` : "Completed"}</button>)}
+                {(["brain", "quests", "history"] as AquariumTab[]).map((candidate) => <button key={candidate} className={tab === candidate ? "active" : ""} onClick={() => setTab(candidate)}>{candidate === "brain" ? "Brain" : candidate === "quests" ? `Quests ${snapshot.quests.length}` : `Completed ${completed.length}`}</button>)}
               </nav>
 
               {tab === "brain" && <div className="tab-body brain-tab">
